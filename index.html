@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Catatan Pembayaran Agensi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* Custom scrollbar for table */
+        .table-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+        .table-scroll::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #invoice-print-area, #invoice-print-area * {
+                visibility: visible;
+            }
+            #invoice-print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 20px;
+                background: white;
+            }
+            /* Hide modal background and action buttons during print */
+            #invoice-modal-overlay {
+                background: none !important;
+                backdrop-filter: none !important;
+            }
+            #invoice-modal-actions {
+                display: none !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Top Navigation -->
+    <nav class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-indigo-600 text-white p-2 rounded-lg">
+                        <i class="fa-solid fa-wallet text-xl"></i>
+                    </div>
+                    <span class="font-bold text-xl tracking-tight text-slate-900">ViewPay<span class="text-indigo-600">Tracker</span></span>
+                </div>
+                <div class="text-sm font-medium text-slate-500">
+                    <i class="fa-regular fa-calendar mr-1"></i> <span id="current-date-display"></span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        
+        <!-- Header & Next Payment Alert -->
+        <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">Dashboard Pembayaran</h1>
+                <p class="text-slate-500 mt-1">Kelola tagihan agensi untuk TikTok & Instagram Views.</p>
+            </div>
+            
+            <!-- Schedule Alert -->
+            <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex items-start gap-4 shadow-sm max-w-md">
+                <div class="bg-indigo-100 text-indigo-600 p-3 rounded-full flex-shrink-0">
+                    <i class="fa-solid fa-bell text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="text-indigo-800 font-semibold text-sm">Jadwal Tagih Berikutnya</h3>
+                    <p class="text-indigo-600 text-xs mt-1">Pembayaran dilakukan setiap <span class="font-bold">Selasa & Jumat</span>.</p>
+                    <p class="text-indigo-900 font-bold mt-1" id="next-payment-date">Menghitung...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Unpaid Stat -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute right-0 top-0 w-24 h-24 bg-amber-50 rounded-bl-full -mr-4 -mt-4 z-0"></div>
+                <div class="relative z-10 flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Belum Dibayar (Pending)</p>
+                        <h2 class="text-3xl font-bold text-slate-800" id="stat-unpaid">Rp 0</h2>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                </div>
+                <div class="relative z-10 mt-4 text-sm text-slate-600">
+                    <span class="font-semibold text-amber-600" id="stat-unpaid-count">0</span> tagihan menunggu
+                </div>
+            </div>
+
+            <!-- Paid Stat -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute right-0 top-0 w-24 h-24 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 z-0"></div>
+                <div class="relative z-10 flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Sudah Dibayar (Lunas)</p>
+                        <h2 class="text-3xl font-bold text-slate-800" id="stat-paid">Rp 0</h2>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-check-double"></i>
+                    </div>
+                </div>
+                <div class="relative z-10 mt-4 text-sm text-slate-600">
+                    <span class="font-semibold text-emerald-600" id="stat-paid-count">0</span> tagihan lunas
+                </div>
+            </div>
+
+            <!-- Total Views Stat -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute right-0 top-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 z-0"></div>
+                <div class="relative z-10 flex justify-between items-start">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 mb-1">Total Views Dikerjakan</p>
+                        <h2 class="text-3xl font-bold text-slate-800" id="stat-views">0</h2>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-eye"></i>
+                    </div>
+                </div>
+                <div class="relative z-10 mt-4 text-sm text-slate-600 flex gap-4">
+                    <span><i class="fa-brands fa-tiktok"></i> <span id="stat-tt-views">0</span></span>
+                    <span><i class="fa-brands fa-instagram"></i> <span id="stat-ig-views">0</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Left Column: Form -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-24">
+                    <h3 class="text-lg font-bold border-b border-slate-100 pb-3 mb-5">Tambah Tagihan Baru</h3>
+                    <form id="record-form" class="space-y-4">
+                        
+                        <!-- Tanggal -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Tanggal</label>
+                            <input type="date" id="input-date" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm">
+                        </div>
+
+                        <!-- Nama Agensi -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Nama Agensi</label>
+                            <input type="text" id="input-agency" placeholder="Misal: Agensi Maju Jaya" required class="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm">
+                        </div>
+
+                        <!-- Platform -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Platform</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="platform" value="TikTok" checked class="peer sr-only">
+                                    <div class="rounded-lg border border-slate-200 px-4 py-2.5 flex items-center justify-center gap-2 peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white transition-all text-sm font-medium">
+                                        <i class="fa-brands fa-tiktok"></i> TikTok
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="platform" value="Instagram" class="peer sr-only">
+                                    <div class="rounded-lg border border-slate-200 px-4 py-2.5 flex items-center justify-center gap-2 peer-checked:border-pink-600 peer-checked:bg-gradient-to-tr peer-checked:from-orange-500 peer-checked:via-pink-500 peer-checked:to-purple-600 peer-checked:text-white transition-all text-sm font-medium">
+                                        <i class="fa-brands fa-instagram"></i> Instagram
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Jumlah View -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Jumlah Views</label>
+                            <div class="relative">
+                                <input type="number" id="input-views" placeholder="1000000" min="1" required class="w-full border border-slate-300 rounded-lg pl-4 pr-12 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm">
+                                <span class="absolute right-3 top-2.5 text-slate-400 text-sm">Views</span>
+                            </div>
+                        </div>
+
+                        <!-- Total Harga -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Total Tagihan (Rp)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-slate-500 text-sm font-medium">Rp</span>
+                                <input type="number" id="input-amount" placeholder="500000" min="1" required class="w-full border border-slate-300 rounded-lg pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors mt-2 shadow-sm flex justify-center items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Simpan Catatan
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Right Column: Table -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+                    <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+                        <h3 class="text-lg font-bold text-slate-800">Riwayat Catatan</h3>
+                        
+                        <!-- Filters -->
+                        <div class="flex gap-2 text-sm">
+                            <button class="filter-btn active px-4 py-1.5 rounded-full border border-indigo-600 bg-indigo-600 text-white font-medium transition-all" data-filter="all">Semua</button>
+                            <button class="filter-btn px-4 py-1.5 rounded-full border border-slate-300 text-slate-600 hover:bg-slate-100 font-medium transition-all" data-filter="pending">Belum Bayar</button>
+                            <button class="filter-btn px-4 py-1.5 rounded-full border border-slate-300 text-slate-600 hover:bg-slate-100 font-medium transition-all" data-filter="paid">Lunas</button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto table-scroll flex-grow">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                                    <th class="px-5 py-4 font-semibold">Tanggal</th>
+                                    <th class="px-5 py-4 font-semibold">Agensi & Platform</th>
+                                    <th class="px-5 py-4 font-semibold text-right">Views</th>
+                                    <th class="px-5 py-4 font-semibold text-right">Tagihan</th>
+                                    <th class="px-5 py-4 font-semibold text-center">Status</th>
+                                    <th class="px-5 py-4 font-semibold text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body" class="divide-y divide-slate-100 text-sm">
+                                <!-- Data will be populated here -->
+                            </tbody>
+                        </table>
+                        
+                        <!-- Empty State -->
+                        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-12 text-slate-400">
+                            <i class="fa-regular fa-folder-open text-4xl mb-3"></i>
+                            <p>Belum ada catatan pembayaran.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Konfirmasi Hapus -->
+    <div id="delete-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform scale-95 transition-transform">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                    <i class="fa-solid fa-triangle-exclamation text-red-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mb-2">Hapus Catatan?</h3>
+                <p class="text-sm text-slate-500 mb-6">Tindakan ini tidak dapat dibatalkan. Catatan ini akan dihapus permanen dari daftar.</p>
+                <div class="flex gap-3">
+                    <button id="cancel-delete" class="flex-1 px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-medium transition-colors">Batal</button>
+                    <button id="confirm-delete" class="flex-1 px-4 py-2 bg-red-600 rounded-lg text-white hover:bg-red-700 font-medium transition-colors shadow-sm">Hapus</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Invoice / Nota -->
+    <div id="invoice-modal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 backdrop-blur-sm transition-opacity overflow-y-auto pt-10 pb-10" id="invoice-modal-overlay">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl transform scale-95 transition-transform my-auto flex flex-col max-h-full">
+            
+            <!-- Area yang akan di-print -->
+            <div id="invoice-print-area" class="p-8 sm:p-10 flex-grow overflow-y-auto bg-white rounded-t-xl">
+                
+                <!-- Invoice Header -->
+                <div class="flex justify-between items-start border-b border-slate-200 pb-6 mb-6">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="bg-indigo-600 text-white p-1.5 rounded-lg no-print">
+                                <i class="fa-solid fa-wallet text-lg"></i>
+                            </div>
+                            <span class="font-bold text-2xl tracking-tight text-slate-900">ViewPay<span class="text-indigo-600">Tracker</span></span>
+                        </div>
+                        <p class="text-sm text-slate-500">Layanan Optimasi Media Sosial</p>
+                    </div>
+                    <div class="text-right">
+                        <h2 class="text-3xl font-bold text-slate-200 uppercase tracking-wider mb-1">INVOICE</h2>
+                        <p class="text-sm font-medium text-slate-600">No. Inv: <span id="inv-number">INV-000</span></p>
+                        <p class="text-sm text-slate-600">Tanggal: <span id="inv-date">01 Jan 2026</span></p>
+                    </div>
+                </div>
+
+                <!-- Agency Info -->
+                <div class="mb-8">
+                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Ditagihkan Kepada:</p>
+                    <h3 class="text-xl font-bold text-slate-900" id="inv-agency">Nama Agensi</h3>
+                    <p class="text-sm text-slate-600 mt-1">Pembayaran untuk Jasa <span id="inv-platform" class="font-medium">Platform</span> Views</p>
+                </div>
+
+                <!-- Invoice Table -->
+                <table class="w-full text-left mb-8 border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-600 text-sm border-y border-slate-200">
+                            <th class="py-3 px-4 font-semibold w-2/3">Deskripsi Layanan</th>
+                            <th class="py-3 px-4 font-semibold text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="border-b border-slate-100">
+                            <td class="py-4 px-4 text-slate-800">
+                                <p class="font-medium text-base">Optimasi View <span id="inv-platform-detail">Platform</span></p>
+                                <p class="text-sm text-slate-500 mt-1">Total pencapaian: <span id="inv-views" class="font-semibold text-slate-700">0</span> Views</p>
+                            </td>
+                            <td class="py-4 px-4 text-right font-bold text-slate-800 text-lg" id="inv-amount">
+                                Rp 0
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td class="py-4 px-4 text-right font-bold text-slate-700 uppercase tracking-wider text-sm">Grand Total</td>
+                            <td class="py-4 px-4 text-right font-bold text-indigo-700 text-2xl border-t-2 border-slate-200" id="inv-total">
+                                Rp 0
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <!-- Footer & Notes -->
+                <div class="mt-12 flex justify-between items-end">
+                    <div class="text-sm text-slate-500 max-w-xs">
+                        <p class="font-semibold text-slate-700 mb-1">Catatan Pembayaran:</p>
+                        <p>Mohon lakukan pembayaran tepat waktu sesuai dengan jadwal penagihan hari Selasa atau Jumat.</p>
+                        <div class="mt-4 inline-block px-3 py-1 rounded-md border text-xs font-bold uppercase tracking-wider" id="inv-status-badge">
+                            STATUS
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-sm text-slate-500 mb-10">Hormat Kami,</p>
+                        <p class="font-bold text-slate-900 border-t border-slate-300 pt-2 inline-block px-4">Manajemen ViewPay</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Action Buttons (Hidden on Print) -->
+            <div id="invoice-modal-actions" class="p-6 border-t border-slate-200 bg-slate-50 rounded-b-xl flex flex-col sm:flex-row justify-end gap-3 no-print">
+                <button onclick="closeInvoiceModal()" class="px-5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 font-medium transition-colors">Tutup</button>
+                <button onclick="exportWord()" class="px-5 py-2.5 bg-blue-600 rounded-lg text-white hover:bg-blue-700 font-medium transition-colors shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-file-word"></i> Export Word
+                </button>
+                <button onclick="window.print()" class="px-5 py-2.5 bg-indigo-600 rounded-lg text-white hover:bg-indigo-700 font-medium transition-colors shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-print"></i> Cetak / PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State Management (In-Memory for current session)
+        // Dummy data included to show how it looks
+        let records = [
+            { id: 1, date: '2026-10-02', agency: 'Media Creative Jkt', platform: 'TikTok', views: 2500000, amount: 2500000, status: 'paid' },
+            { id: 2, date: '2026-10-04', agency: 'Viral Agency', platform: 'Instagram', views: 500000, amount: 750000, status: 'pending' },
+            { id: 3, date: '2026-10-05', agency: 'Nusantara Talent', platform: 'TikTok', views: 1200000, amount: 1200000, status: 'pending' },
+        ];
+
+        let currentFilter = 'all'; // all, pending, paid
+        let recordToDelete = null;
+        let activeInvoiceData = null; // Menyimpan data nota yang sedang aktif
+
+        // --- DOM Elements ---
+        const tableBody = document.getElementById('table-body');
+        const emptyState = document.getElementById('empty-state');
+        const form = document.getElementById('record-form');
+        
+        // Stats Elements
+        const statUnpaid = document.getElementById('stat-unpaid');
+        const statUnpaidCount = document.getElementById('stat-unpaid-count');
+        const statPaid = document.getElementById('stat-paid');
+        const statPaidCount = document.getElementById('stat-paid-count');
+        const statViews = document.getElementById('stat-views');
+        const statTtViews = document.getElementById('stat-tt-views');
+        const statIgViews = document.getElementById('stat-ig-views');
+        
+        // Date Elements
+        const currentDateDisplay = document.getElementById('current-date-display');
+        const nextPaymentDateDisplay = document.getElementById('next-payment-date');
+        const inputDate = document.getElementById('input-date');
+
+        // Modal Elements
+        const deleteModal = document.getElementById('delete-modal');
+        const cancelDeleteBtn = document.getElementById('cancel-delete');
+        const confirmDeleteBtn = document.getElementById('confirm-delete');
+        
+        // Modal Invoice Elements
+        const invoiceModal = document.getElementById('invoice-modal');
+
+        // --- STREAMING_CHUNK:Adding helper functions for dates and calculations ---
+        
+        // Formatter utilities
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+        };
+
+        const formatNumber = (num) => {
+            return new Intl.NumberFormat('id-ID').format(num);
+        };
+
+        const formatDate = (dateString) => {
+            const options = { day: '2-digit', month: 'short', year: 'numeric' };
+            return new Date(dateString).toLocaleDateString('id-ID', options);
+        };
+
+        // Date Calculators
+        const initDates = () => {
+            const today = new Date();
+            
+            // Set top header date
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            currentDateDisplay.textContent = today.toLocaleDateString('id-ID', options);
+
+            // Set default input date to today
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            inputDate.value = `${yyyy}-${mm}-${dd}`;
+
+            // Calculate next Tuesday or Friday
+            calculateNextPaymentDay(today);
+        };
+
+        const calculateNextPaymentDay = (today) => {
+            const currentDay = today.getDay(); // 0=Sun, 1=Mon, 2=Tue, ..., 5=Fri, 6=Sat
+            let daysUntilNext = 0;
+
+            // Target days: 2 (Tuesday) and 5 (Friday)
+            if (currentDay === 2 || currentDay === 5) {
+                // If today is payday, point to next one
+                daysUntilNext = (currentDay === 2) ? 3 : 4; 
+            } else if (currentDay < 2) {
+                daysUntilNext = 2 - currentDay; // Point to Tuesday
+            } else if (currentDay < 5) {
+                daysUntilNext = 5 - currentDay; // Point to Friday
+            } else {
+                daysUntilNext = 9 - currentDay; // Point to next Tuesday (7-current + 2)
+            }
+
+            const nextPayDate = new Date(today);
+            nextPayDate.setDate(today.getDate() + daysUntilNext);
+            
+            const dayName = nextPayDate.getDay() === 2 ? 'Selasa' : 'Jumat';
+            const dateFormatted = nextPayDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+            
+            nextPaymentDateDisplay.innerHTML = `<span class="text-indigo-600">${dayName},</span> ${dateFormatted}`;
+        };
+
+        // --- Core Application Logic ---
+
+        const updateDashboardStats = () => {
+            let unpaid = 0, unpaidCount = 0;
+            let paid = 0, paidCount = 0;
+            let totalViews = 0, ttViews = 0, igViews = 0;
+
+            records.forEach(rec => {
+                totalViews += rec.views;
+                if (rec.platform === 'TikTok') ttViews += rec.views;
+                if (rec.platform === 'Instagram') igViews += rec.views;
+
+                if (rec.status === 'pending') {
+                    unpaid += rec.amount;
+                    unpaidCount++;
+                } else {
+                    paid += rec.amount;
+                    paidCount++;
+                }
+            });
+
+            statUnpaid.textContent = formatCurrency(unpaid);
+            statUnpaidCount.textContent = unpaidCount;
+            
+            statPaid.textContent = formatCurrency(paid);
+            statPaidCount.textContent = paidCount;
+
+            statViews.textContent = formatNumber(totalViews);
+            statTtViews.textContent = formatNumber(ttViews);
+            statIgViews.textContent = formatNumber(igViews);
+        };
+
+        const renderTable = () => {
+            tableBody.innerHTML = '';
+            
+            // Sort records by date descending
+            const sortedRecords = [...records].sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            // Apply filter
+            const filteredRecords = sortedRecords.filter(rec => {
+                if (currentFilter === 'all') return true;
+                return rec.status === currentFilter;
+            });
+
+            if (filteredRecords.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+
+                filteredRecords.forEach(rec => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50/80 transition-colors group';
+                    
+                    const isPaid = rec.status === 'paid';
+                    
+                    // Platform badge styling
+                    const platformIcon = rec.platform === 'TikTok' 
+                        ? '<span class="bg-black text-white text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1"><i class="fa-brands fa-tiktok"></i> TikTok</span>' 
+                        : '<span class="bg-gradient-to-tr from-orange-500 via-pink-500 to-purple-600 text-white text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1"><i class="fa-brands fa-instagram"></i> Instagram</span>';
+
+                    // Status badge
+                    const statusBadge = isPaid 
+                        ? '<span class="inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200"><i class="fa-solid fa-check"></i> Lunas</span>'
+                        : '<span class="inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200"><i class="fa-solid fa-clock"></i> Belum Bayar</span>';
+                    
+                    // Action button
+                    const toggleBtn = isPaid
+                        ? `<button onclick="toggleStatus(${rec.id})" title="Tandai Belum Bayar" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-600 transition-colors flex items-center justify-center"><i class="fa-solid fa-arrow-rotate-left"></i></button>`
+                        : `<button onclick="toggleStatus(${rec.id})" title="Tandai Lunas" class="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 hover:bg-emerald-100 hover:text-emerald-600 transition-colors flex items-center justify-center"><i class="fa-solid fa-check-double"></i></button>`;
+
+                    tr.innerHTML = `
+                        <td class="px-5 py-4 whitespace-nowrap text-slate-600">
+                            ${formatDate(rec.date)}
+                        </td>
+                        <td class="px-5 py-4">
+                            <div class="font-medium text-slate-900">${rec.agency}</div>
+                            <div class="mt-1">${platformIcon}</div>
+                        </td>
+                        <td class="px-5 py-4 whitespace-nowrap text-right font-medium text-slate-700">
+                            ${formatNumber(rec.views)}
+                        </td>
+                        <td class="px-5 py-4 whitespace-nowrap text-right font-bold text-slate-800">
+                            ${formatCurrency(rec.amount)}
+                        </td>
+                        <td class="px-5 py-4 whitespace-nowrap text-center">
+                            ${statusBadge}
+                        </td>
+                        <td class="px-5 py-4 whitespace-nowrap text-center">
+                            <div class="flex items-center justify-center gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                <button onclick="openInvoiceModal(${rec.id})" title="Buat Nota Tagihan" class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 transition-colors flex items-center justify-center"><i class="fa-solid fa-file-invoice"></i></button>
+                                ${toggleBtn}
+                                <button onclick="openDeleteModal(${rec.id})" title="Hapus" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-red-100 hover:text-red-600 transition-colors flex items-center justify-center"><i class="fa-regular fa-trash-can"></i></button>
+                            </div>
+                        </td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+        };
+
+        // --- Event Listeners & Actions ---
+
+        // Add new record
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const date = document.getElementById('input-date').value;
+            const agency = document.getElementById('input-agency').value;
+            const platform = document.querySelector('input[name="platform"]:checked').value;
+            const views = parseInt(document.getElementById('input-views').value);
+            const amount = parseInt(document.getElementById('input-amount').value);
+
+            const newRecord = {
+                id: Date.now(), // simple unique id generator
+                date: date,
+                agency: agency,
+                platform: platform,
+                views: views,
+                amount: amount,
+                status: 'pending' // always pending initially
+            };
+
+            records.push(newRecord);
+            
+            // Reset form partly, keep date to ease bulk insert
+            document.getElementById('input-agency').value = '';
+            document.getElementById('input-views').value = '';
+            document.getElementById('input-amount').value = '';
+            
+            refreshUI();
+            
+            // Optional: Show simple toast/notification logic here
+        });
+
+        // Toggle Status (Pending <-> Paid)
+        window.toggleStatus = (id) => {
+            const index = records.findIndex(r => r.id === id);
+            if (index !== -1) {
+                records[index].status = records[index].status === 'pending' ? 'paid' : 'pending';
+                refreshUI();
+            }
+        };
+
+        // Delete Logic
+        window.openDeleteModal = (id) => {
+            recordToDelete = id;
+            deleteModal.classList.remove('hidden');
+            deleteModal.classList.add('flex');
+            setTimeout(() => {
+                deleteModal.children[0].classList.remove('scale-95');
+                deleteModal.children[0].classList.add('scale-100');
+            }, 10);
+        };
+
+        const closeDeleteModal = () => {
+            deleteModal.children[0].classList.remove('scale-100');
+            deleteModal.children[0].classList.add('scale-95');
+            setTimeout(() => {
+                deleteModal.classList.add('hidden');
+                deleteModal.classList.remove('flex');
+                recordToDelete = null;
+            }, 150);
+        };
+
+        cancelDeleteBtn.addEventListener('click', closeDeleteModal);
+        
+        confirmDeleteBtn.addEventListener('click', () => {
+            if (recordToDelete) {
+                records = records.filter(r => r.id !== recordToDelete);
+                refreshUI();
+                closeDeleteModal();
+            }
+        });
+
+        // --- STREAMING_CHUNK:Adding Invoice Modal and Export Logic ---
+        
+        // Membuka Modal Invoice
+        window.openInvoiceModal = (id) => {
+            const rec = records.find(r => r.id === id);
+            if (!rec) return;
+            
+            activeInvoiceData = rec; // Simpan untuk fungsi export Word
+            
+            // Populate Data
+            document.getElementById('inv-number').textContent = `INV-${rec.id.toString().slice(-6)}`;
+            document.getElementById('inv-date').textContent = formatDate(rec.date);
+            document.getElementById('inv-agency').textContent = rec.agency;
+            document.getElementById('inv-platform').textContent = rec.platform;
+            document.getElementById('inv-platform-detail').textContent = rec.platform;
+            document.getElementById('inv-views').textContent = formatNumber(rec.views);
+            
+            const amtFormatted = formatCurrency(rec.amount);
+            document.getElementById('inv-amount').textContent = amtFormatted;
+            document.getElementById('inv-total').textContent = amtFormatted;
+
+            // Status Badge in Invoice
+            const badge = document.getElementById('inv-status-badge');
+            if (rec.status === 'paid') {
+                badge.textContent = 'SUDAH LUNAS';
+                badge.className = "mt-4 inline-block px-3 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider";
+            } else {
+                badge.textContent = 'BELUM DIBAYAR';
+                badge.className = "mt-4 inline-block px-3 py-1 rounded-md border border-red-200 bg-red-50 text-red-600 text-xs font-bold uppercase tracking-wider";
+            }
+
+            // Tampilkan Modal
+            invoiceModal.classList.remove('hidden');
+            invoiceModal.classList.add('flex');
+            setTimeout(() => {
+                invoiceModal.children[0].classList.remove('scale-95');
+                invoiceModal.children[0].classList.add('scale-100');
+            }, 10);
+        };
+
+        // Menutup Modal Invoice
+        window.closeInvoiceModal = () => {
+            invoiceModal.children[0].classList.remove('scale-100');
+            invoiceModal.children[0].classList.add('scale-95');
+            setTimeout(() => {
+                invoiceModal.classList.add('hidden');
+                invoiceModal.classList.remove('flex');
+                activeInvoiceData = null;
+            }, 150);
+        };
+
+        // Fungsi Export HTML ke format DOC (.doc) untuk Microsoft Word
+        window.exportWord = () => {
+            if (!activeInvoiceData) return;
+            
+            const rec = activeInvoiceData;
+            
+            // Header dasar untuk kompatibilitas HTML to Word
+            const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Nota Tagihan</title></head><body>";
+            const footer = "</body></html>";
+            
+            // Desain HTML sederhana khusus untuk Word
+            const content = `
+                <div style="font-family: Arial, sans-serif; max-width: 800px; margin: auto;">
+                    <h1 style="text-align: right; color: #4f46e5; margin-bottom: 0;">INVOICE</h1>
+                    <p style="text-align: right; margin-top: 5px;"><strong>No. Inv:</strong> INV-${rec.id.toString().slice(-6)}<br>
+                    <strong>Tanggal:</strong> ${formatDate(rec.date)}</p>
+                    
+                    <h2 style="color: #1e293b;">ViewPay Tracker</h2>
+                    <p style="color: #64748b;">Layanan Optimasi Media Sosial</p>
+                    <hr style="border: 1px solid #cbd5e1; margin-bottom: 20px;">
+                    
+                    <table style="width: 100%; margin-bottom: 30px;">
+                        <tr>
+                            <td>
+                                <p style="margin:0; font-size: 12px; color: #64748b; text-transform: uppercase;">Ditagihkan Kepada:</p>
+                                <h3 style="margin: 5px 0;">${rec.agency}</h3>
+                                <p style="margin:0; color: #475569;">Pembayaran untuk Jasa ${rec.platform} Views</p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table border="1" cellpadding="10" cellspacing="0" style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1;">
+                        <thead style="background-color: #f8fafc;">
+                            <tr>
+                                <th style="text-align: left; border: 1px solid #cbd5e1;">Deskripsi Layanan</th>
+                                <th style="text-align: right; border: 1px solid #cbd5e1;">Total Harga</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="border: 1px solid #cbd5e1;">
+                                    <strong>Optimasi View ${rec.platform}</strong><br>
+                                    <span style="font-size: 12px; color: #475569;">Total pencapaian: ${formatNumber(rec.views)} Views</span>
+                                </td>
+                                <td style="text-align: right; font-weight: bold; border: 1px solid #cbd5e1;">
+                                    ${formatCurrency(rec.amount)}
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td style="text-align: right; font-weight: bold; padding-top: 15px;">GRAND TOTAL:</td>
+                                <td style="text-align: right; font-weight: bold; font-size: 18px; color: #4f46e5; padding-top: 15px;">
+                                    ${formatCurrency(rec.amount)}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    
+                    <br><br>
+                    <p style="color: #64748b; font-size: 12px;"><strong>Status:</strong> ${rec.status === 'paid' ? 'SUDAH LUNAS' : 'BELUM DIBAYAR'}</p>
+                    <p style="color: #64748b; font-size: 12px;">Mohon lakukan pembayaran tepat waktu sesuai dengan jadwal penagihan hari Selasa atau Jumat.</p>
+                    
+                    <br><br>
+                    <div style="text-align: right;">
+                        <p style="margin-bottom: 60px;">Hormat Kami,</p>
+                        <p><strong>Manajemen ViewPay</strong></p>
+                    </div>
+                </div>
+            `;
+            
+            const sourceHTML = header + content + footer;
+            
+            // Encode data ke Data URI scheme untuk trigger download
+            const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
+            
+            // Buat elemen link fiktif untuk memicu download
+            const fileDownload = document.createElement("a");
+            document.body.appendChild(fileDownload);
+            fileDownload.href = source;
+            // Set nama file
+            const fileName = `Nota_${rec.agency.replace(/\s+/g, '_')}_${rec.platform}.doc`;
+            fileDownload.download = fileName;
+            fileDownload.click();
+            
+            // Bersihkan DOM
+            document.body.removeChild(fileDownload);
+        };
+
+
+        // Filter functionality
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Update active state
+                filterBtns.forEach(b => {
+                    b.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-600', 'active');
+                    b.classList.add('bg-transparent', 'text-slate-600', 'border-slate-300');
+                });
+                
+                const target = e.target;
+                target.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600', 'active');
+                target.classList.remove('bg-transparent', 'text-slate-600', 'border-slate-300');
+
+                currentFilter = target.getAttribute('data-filter');
+                renderTable();
+            });
+        });
+
+        const refreshUI = () => {
+            updateDashboardStats();
+            renderTable();
+        };
+
+        // Initialization
+        window.onload = () => {
+            initDates();
+            refreshUI();
+        };
+
+    </script>
+</body>
+</html>
